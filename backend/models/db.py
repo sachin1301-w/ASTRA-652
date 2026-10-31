@@ -39,6 +39,9 @@ class Document(Base):
     # Independent of the file/SQLite storage above - Cognee never gates that path.
     memory_status: Mapped[str] = mapped_column(String, default="pending")
     memory_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pii_report: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=dict)
+    extraction_method: Mapped[str | None] = mapped_column(String, nullable=True, default="gemini")
+
 
 
 class FinancialTwin(Base):
@@ -141,6 +144,20 @@ class DocumentBinary(Base):
     data: Mapped[bytes] = mapped_column(LargeBinary)
 
 
+class DocumentChunk(Base):
+    __tablename__ = "document_chunks"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_new_id)
+    user_id: Mapped[str] = mapped_column(String, index=True)
+    document_id: Mapped[str] = mapped_column(String, index=True)
+    filename: Mapped[str] = mapped_column(String)
+    page: Mapped[int] = mapped_column(default=1)
+    heading: Mapped[str] = mapped_column(String, default="")
+    text: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 def _add_missing_columns() -> None:
     """create_all only creates missing tables, not missing columns on tables that
     already exist. SQLite supports plain ADD COLUMN, so new nullable/defaulted
@@ -155,6 +172,11 @@ def _add_missing_columns() -> None:
             connection.execute(text("ALTER TABLE documents ADD COLUMN memory_status VARCHAR DEFAULT 'pending'"))
         if "memory_error" not in existing_columns:
             connection.execute(text("ALTER TABLE documents ADD COLUMN memory_error TEXT"))
+        if "pii_report" not in existing_columns:
+            connection.execute(text("ALTER TABLE documents ADD COLUMN pii_report JSON"))
+        if "extraction_method" not in existing_columns:
+            connection.execute(text("ALTER TABLE documents ADD COLUMN extraction_method VARCHAR DEFAULT 'gemini'"))
+
 
 
 def init_db() -> None:

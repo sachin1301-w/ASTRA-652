@@ -27,6 +27,28 @@ class Settings(BaseSettings):
     convai_experience_id: str = ""
     convai_character_id: str = ""
 
+    # Pretrained Hugging Face & Custom ML Configuration
+    ml_enabled: bool = False
+    ml_models_dir: str = "ml_models"
+    ml_device: str = "cpu"
+    ml_idle_unload_seconds: int = 300
+
+    # Individual model feature flags (all default False)
+    enable_embeddings: bool = False
+    enable_ner: bool = False
+    enable_docling: bool = False
+    enable_indic_translate: bool = False
+    enable_indic_asr: bool = False
+    enable_car_damage: bool = False
+
+    # Operational limits and settings
+    ml_max_pages_docling: int = 3
+    ml_max_audio_seconds: int = 60
+    store_masked_text: bool = False
+    docling_primary: bool = False
+    inr_per_model_unit: float = 85.0
+
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @property

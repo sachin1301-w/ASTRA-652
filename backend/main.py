@@ -6,7 +6,8 @@ import re
 
 from config import settings
 from models.db import init_db
-from routes import assistant, auth, cognee, convai, documents, finance, profile, speech
+from routes import assistant, auth, cognee, convai, documents, finance, ml, profile, speech
+
 
 app = FastAPI(
     title="FinLens AI API",
@@ -62,7 +63,9 @@ app.include_router(cognee.router)
 app.include_router(convai.router)
 app.include_router(documents.router)
 app.include_router(finance.router)
+app.include_router(ml.router)
 app.include_router(profile.router)
+
 app.include_router(speech.router)
 
 

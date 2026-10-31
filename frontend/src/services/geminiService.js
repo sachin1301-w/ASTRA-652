@@ -54,5 +54,6 @@ export async function sendMessage({ question, language, dynamicContext, model })
   })
   const data = await response.json().catch(() => null)
   if (!response.ok) throw new Error(data?.error || 'Gemini is unavailable right now. Please try again.')
-  return { text: data.answer, model: data.model }
+  return { text: data.answer, model: data.model, sources: data.sources || [] }
+
 }

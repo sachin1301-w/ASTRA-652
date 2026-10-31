@@ -1,2 +1,5 @@
 # See frontend/.gitignore and backend/.gitignore for stack-specific rules.
 .DS_Store
+backend/ml_models/
+ml_models/
+

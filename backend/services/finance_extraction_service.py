@@ -6,9 +6,12 @@ import logging
 import re
 from typing import Literal
 
+from config import settings
 from services import gemini_service
+from services.ml.docling_service import read_document_with_docling
 
 logger = logging.getLogger(__name__)
+
 
 DocumentType = Literal[
     "itr",
@@ -116,11 +119,21 @@ async def extract_financial_data(
     model: str | None = None,
 ) -> dict:
     """
-    Returns {"summary": str, "fields": dict, "risks": list[str], "extracted_text": str}.
+    Returns {"summary": str, "fields": dict, "risks": list[str], "extracted_text": str, "extraction_method": str}.
     Uses Gemini Multimodal Vision when file_bytes is provided.
-    Falls back to deterministic extraction if Gemini is unreachable.
+    Falls back to offline Docling and deterministic extraction if Gemini is unreachable or DOCLING_PRIMARY is true.
     """
+    extraction_method = "gemini"
     has_file = bool(file_bytes and mime_type)
+
+    # Check if docling primary is requested for offline OCR
+    if settings.docling_primary and has_file:
+        docling_text = read_document_with_docling(file_bytes, mime_type)
+        if docling_text:
+            extracted_text = docling_text
+            extraction_method = "docling"
+            has_file = False  # Switch to text-only processing
+
     prompt = _build_prompt(document_type, extracted_text, has_file=has_file)
     selected_model = gemini_service.resolve_model(model)
 
@@ -128,18 +141,31 @@ async def extract_financial_data(
         parsed = await gemini_service.generate_json(
             prompt,
             model=selected_model,
-            file_bytes=file_bytes,
-            mime_type=mime_type,
+            file_bytes=file_bytes if has_file else None,
+            mime_type=mime_type if has_file else None,
         )
         return {
             "summary": parsed.get("summary") or _fallback_result(extracted_text, document_type)["summary"],
             "extracted_text": parsed.get("extracted_text") or extracted_text,
             "fields": parsed.get("fields") or {},
             "risks": parsed.get("risks") or [],
+            "extraction_method": extraction_method,
         }
     except (gemini_service.GeminiUnavailableError, ValueError, TypeError) as exc:
-        logger.warning("Gemini extraction unavailable; using deterministic fallback: %s", exc)
-        return _fallback_result(extracted_text, document_type)
+        logger.warning("Gemini extraction unavailable; checking docling fallback: %s", exc)
+        # Fallback to local docling if file is present and text was empty
+        if file_bytes and mime_type and (not extracted_text or len(extracted_text.strip()) < 50):
+            docling_text = read_document_with_docling(file_bytes, mime_type)
+            if docling_text:
+                fallback = _fallback_result(docling_text, document_type)
+                fallback["extracted_text"] = docling_text
+                fallback["extraction_method"] = "docling"
+                return fallback
+
+        fallback = _fallback_result(extracted_text, document_type)
+        fallback["extraction_method"] = "deterministic"
+        return fallback
+
 
 
 def _build_hindi_explanation_prompt(

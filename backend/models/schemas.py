@@ -52,10 +52,20 @@ class AssistantChatRequest(BaseModel):
     ]] = None
 
 
+class SourceCitation(BaseModel):
+    document_id: str
+    filename: str
+    page: int
+    snippet: str
+    score: float
+
+
 class AssistantChatResponse(BaseModel):
     success: bool
     answer: str
     model: str
+    sources: list[SourceCitation] = Field(default_factory=list)
+
 
 
 DocumentType = Literal[
@@ -77,6 +87,8 @@ class DocumentUploadResponse(BaseModel):
     summary: str
     fields: dict
     risks: list[str]
+    pii_report: Optional[dict] = None
+    extraction_method: Optional[str] = "gemini"
 
 
 MemoryStatus = Literal["pending", "added", "failed", "disabled"]
@@ -92,6 +104,8 @@ class DocumentOut(BaseModel):
     extracted_text: str
     memory_status: MemoryStatus
     memory_error: Optional[str] = None
+    pii_report: Optional[dict] = None
+    extraction_method: Optional[str] = "gemini"
 
 
 class DocumentSummaryOut(BaseModel):
@@ -106,6 +120,9 @@ class DocumentSummaryOut(BaseModel):
     created_at: datetime
     risks_count: int
     memory_status: MemoryStatus
+    pii_report: Optional[dict] = None
+    extraction_method: Optional[str] = "gemini"
+
 
 
 class DocumentListResponse(BaseModel):

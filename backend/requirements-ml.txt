@@ -1,0 +1,12 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchaudio
+transformers
+sentence-transformers
+numpy
+pillow
+soundfile
+docling-core
+IndicTransToolkit
+psutil
+scikit-learn

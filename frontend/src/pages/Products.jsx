@@ -128,21 +128,43 @@ export default function Products() {
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
-                    className="mt-2.5 rounded-2xl border border-[#e3edf7] bg-[#f0f7fd] p-3 text-xs"
+                    className="mt-2.5 rounded-2xl border border-[#00baf2]/30 bg-[#f0f7fd] p-3 text-xs"
                   >
-                    <div className="flex justify-between">
-                      <span className="text-[#64748b]">Resulting DTI:</span>
-                      <strong className="text-[#002970]">{dti}%</strong>
+                    <div className="flex items-center justify-between border-b border-[#00baf2]/20 pb-1.5">
+                      <span className="font-bold text-[#002970]">Approval Chance</span>
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black text-emerald-800">
+                        {dti < 40 ? '82% High' : dti < 55 ? '58% Medium' : '32% Low'} (Estimate)
+                      </span>
                     </div>
-                    <div className="flex justify-between mt-1">
-                      <span className="text-[#64748b]">Affordability:</span>
-                      <strong className={AFFORDABILITY_COLOR[affordability]}>{affordability}</strong>
+
+                    <div className="mt-2 space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-[#64748b]">Monthly EMI:</span>
+                        <strong className="text-[#002970]">₹{emi.toLocaleString('en-IN')}</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#64748b]">Resulting DTI:</span>
+                        <strong className="text-[#002970]">{dti}%</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#64748b]">Affordability:</span>
+                        <strong className={AFFORDABILITY_COLOR[affordability]}>{affordability}</strong>
+                      </div>
                     </div>
-                    <p className="mt-1.5 text-[10px] text-[#64748b] leading-tight">
-                      Educational projection based on ₹{twin.monthlyIncome.toLocaleString('en-IN')}/mo gross income.
+
+                    <div className="mt-2 rounded-xl bg-white/70 p-2 text-[10px] space-y-0.5 border border-[#e3edf7]">
+                      <p className="font-bold text-[#002970]">Key Approval Factors:</p>
+                      <p className="text-slate-600">• DTI stays {dti < 50 ? 'within standard banking norms' : 'elevated above 50%'}.</p>
+                      <p className="text-slate-600">• Calibrated monthly income covers {Math.max(1, Math.round(twin.monthlyIncome / (emi || 1)))}x EMI.</p>
+                      <p className="text-slate-600">• Pre-assessment assumes no recent defaults.</p>
+                    </div>
+
+                    <p className="mt-1.5 text-[9px] text-[#64748b] italic">
+                      Educational estimate based on ₹{twin.monthlyIncome.toLocaleString('en-IN')}/mo gross income. Final underwriting requires verification.
                     </p>
                   </motion.div>
                 )}
+
 
                 {showAnalysis && isInsurance && (
                   <motion.div

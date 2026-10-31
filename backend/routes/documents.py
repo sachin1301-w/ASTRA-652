@@ -27,7 +27,10 @@ from models.schemas import (
 )
 from services import finance_extraction_service, pdf_service
 from services.cognee_service import CogneeUnavailableError, cognee_service
+from services.ml.embedding_service import delete_document_chunks, index_document_chunks
+from services.ml.pii_service import mask_pii
 from services.security import get_current_user
+
 
 logger = logging.getLogger(__name__)
 
@@ -96,11 +99,15 @@ async def upload_document(
             detail="A file or extracted text is required.",
         )
 
+    _, pii_rep = mask_pii(text) if text else ("", {})
+
     with get_session() as session:
         document = Document(
             filename=(file.filename if file else "uploaded-document"),
             document_type=document_type,
             extracted_text=text,
+            pii_report=pii_rep,
+            extraction_method="gemini",
         )
         session.add(document)
         session.flush()
@@ -110,6 +117,12 @@ async def upload_document(
         session.commit()
         session.refresh(document)
 
+        if text:
+            try:
+                index_document_chunks(user.id, document.id, document.filename, text)
+            except Exception as e:
+                logger.warning(f"Failed to index chunks on upload: {e}")
+
         return DocumentUploadResponse(
             success=True,
             id=document.id,
@@ -118,7 +131,10 @@ async def upload_document(
             summary="",
             fields={},
             risks=[],
+            pii_report=pii_rep,
+            extraction_method=document.extraction_method,
         )
+
 
 
 async def _sync_document_to_memory(
@@ -140,11 +156,13 @@ async def _sync_document_to_memory(
     if extracted_text:
         memory_text_parts.append(f"Full text:\n{extracted_text[:8000]}")
     memory_text = "\n".join(memory_text_parts)
+    masked_memory_text, _ = mask_pii(memory_text)
 
     try:
         await cognee_service.add_document(
-            user_id, memory_text, metadata={"document_id": document_id, "document_type": document_type}
+            user_id, masked_memory_text, metadata={"document_id": document_id, "document_type": document_type}
         )
+
         await cognee_service.process_document(user_id)
         status, error = "added", None
     except CogneeUnavailableError as exc:
@@ -176,10 +194,14 @@ async def analyze_document(
         file_bytes = stored_file.data if stored_file else None
         mime_type = stored_file.content_type if stored_file else None
 
+        # Apply PII masking before sending text to Gemini
+        text_for_analysis = document.extracted_text or ""
+        masked_text, pii_rep = mask_pii(text_for_analysis)
+
         try:
             result = await finance_extraction_service.extract_financial_data(
                 document.document_type,
-                document.extracted_text,
+                masked_text,
                 file_bytes=file_bytes,
                 mime_type=mime_type,
                 model=model,
@@ -189,12 +211,27 @@ async def analyze_document(
         document.summary = result["summary"]
         document.fields = result["fields"]
         document.risks = result["risks"]
+        document.pii_report = pii_rep
+        document.extraction_method = result.get("extraction_method", "gemini")
+
         if result.get("extracted_text"):
-            document.extracted_text = result["extracted_text"]
+            if settings.store_masked_text:
+                document.extracted_text = masked_text
+            else:
+                document.extracted_text = result["extracted_text"]
+        elif settings.store_masked_text:
+            document.extracted_text = masked_text
+
         document.memory_status = "pending"
         document.memory_error = None
         session.commit()
         session.refresh(document)
+
+        # Index chunks for semantic cited search
+        try:
+            index_document_chunks(user.id, document.id, document.filename, document.extracted_text)
+        except Exception as e:
+            logger.warning(f"Failed to index chunks during analysis: {e}")
 
         background_tasks.add_task(
             _sync_document_to_memory,
@@ -214,7 +251,10 @@ async def analyze_document(
             summary=document.summary,
             fields=document.fields,
             risks=document.risks,
+            pii_report=document.pii_report,
+            extraction_method=document.extraction_method,
         )
+
 
 
 @router.get("", response_model=DocumentListResponse)
@@ -253,9 +293,12 @@ async def list_documents(
                 created_at=document.created_at,
                 risks_count=len(document.risks or []),
                 memory_status=document.memory_status,
+                pii_report=document.pii_report,
+                extraction_method=document.extraction_method,
             )
             for document in documents
         ]
+
         return DocumentListResponse(success=True, documents=items)
 
 
@@ -273,7 +316,10 @@ async def get_document(document_id: str, user: User = Depends(get_current_user))
             extracted_text=document.extracted_text,
             memory_status=document.memory_status,
             memory_error=document.memory_error,
+            pii_report=document.pii_report,
+            extraction_method=document.extraction_method,
         )
+
 
 
 @router.get("/{document_id}/download")
@@ -327,7 +373,9 @@ async def delete_document(document_id: str, user: User = Depends(get_current_use
             session.delete(owner)
 
         session.delete(document)
+        delete_document_chunks(user.id, document_id)
         session.commit()
+
         return {"success": True}
 
 

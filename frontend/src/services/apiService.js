@@ -19,11 +19,15 @@ export function setAccessToken(token) {
   }
 }
 
+export { API_BASE_URL }
+
 export async function authenticatedFetch(url, options = {}) {
   const token = getAccessToken()
   const headers = new Headers(options.headers || {})
   if (token) headers.set('Authorization', `Bearer ${token}`)
-  const response = await fetch(url, { ...options, headers })
+  const targetUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`
+  const response = await fetch(targetUrl, { ...options, headers })
+
   if (response.status === 401) {
     setAccessToken('')
     window.dispatchEvent(new Event('finlens:unauthorized'))

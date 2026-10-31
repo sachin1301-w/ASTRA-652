@@ -175,7 +175,21 @@ export default function DocumentHistory({ geminiModel }) {
                   >
                     {doc.processing_status === 'analyzed' ? '✓ Analyzed' : '⏳ Uploaded'}
                   </span>
+                  {doc.pii_report && doc.pii_report.total > 0 && (
+                    <span
+                      title="Aadhaar, PAN, phone or financial IDs were masked before AI processing"
+                      className="flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2.5 py-0.5 text-[11px] font-bold text-purple-700"
+                    >
+                      🔒 {doc.pii_report.total} sensitive {doc.pii_report.total === 1 ? 'item' : 'items'} hidden from AI
+                    </span>
+                  )}
+                  {doc.extraction_method === 'docling' && (
+                    <span className="flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-blue-700">
+                      📄 Docling OCR
+                    </span>
+                  )}
                   {doc.processing_status === 'analyzed' && MEMORY_STATUS[doc.memory_status] && (
+
                     <span
                       title={doc.memory_status === 'failed' ? 'Cognee could not process this document, but it stays saved.' : undefined}
                       className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold ${MEMORY_STATUS[doc.memory_status].className}`}

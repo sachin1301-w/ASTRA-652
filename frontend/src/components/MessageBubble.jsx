@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Bot, Square, Volume2 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Bot, FileText, Square, Volume2, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { isSpeechSynthesisSupported, speak, stopSpeaking } from '../services/speechService'
@@ -8,7 +8,9 @@ import { isSpeechSynthesisSupported, speak, stopSpeaking } from '../services/spe
 export default function MessageBubble({ message }) {
   const fromUser = message.role === 'user'
   const [isPlaying, setIsPlaying] = useState(false)
+  const [activeSource, setActiveSource] = useState(null)
   const isHindi = /[\u0900-\u097F]/.test(message.content)
+
 
   async function handleToggleSpeech() {
     if (isPlaying) {
@@ -98,7 +100,61 @@ export default function MessageBubble({ message }) {
               {message.content}
             </ReactMarkdown>
 
+            {/* Cited Document Sources */}
+            {message.sources && message.sources.length > 0 && (
+              <div className="mt-3 border-t border-[#e3edf7] pt-2">
+                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
+                  Cited Sources ({message.sources.length})
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {message.sources.map((src, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setActiveSource(activeSource?.snippet === src.snippet ? null : src)}
+                      className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition-all ${
+                        activeSource?.snippet === src.snippet
+                          ? 'border-[#002970] bg-[#002970] text-white shadow-xs'
+                          : 'border-[#00baf2]/40 bg-[#f0f7fd] text-[#002970] hover:bg-[#e0f2fe]'
+                      }`}
+                    >
+                      <FileText className="h-3 w-3" />
+                      <span>{src.filename}, p.{src.page}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <AnimatePresence>
+                  {activeSource && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mt-2 overflow-hidden rounded-xl border border-[#00baf2]/30 bg-[#f8fbfe] p-3 text-xs shadow-xs"
+                    >
+                      <div className="flex items-center justify-between border-b border-[#e2e8f0] pb-1.5">
+                        <span className="font-bold text-[#002970]">
+                          📄 {activeSource.filename} — Page {activeSource.page} (Match score: {Math.round(activeSource.score * 100)}%)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setActiveSource(null)}
+                          className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-slate-200 text-slate-500"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <p className="mt-2 text-[11px] font-mono leading-relaxed text-[#334155] bg-white p-2 rounded-lg border border-[#e3edf7]">
+                        "{activeSource.snippet}"
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
             {isSpeechSynthesisSupported && (
+
               <div className="mt-3 flex items-center justify-between border-t border-[#e3edf7] pt-2 text-xs">
                 <button
                   type="button"

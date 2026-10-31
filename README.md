@@ -429,6 +429,67 @@ npm run dev
 
 ---
 
+## 🤖 Optional Machine Learning Models (Offline & Local)
+
+FinLens AI supports an optional, offline-capable local ML engine alongside Google Gemini. **Production does not depend on ML**—Gemini remains the primary cloud intelligence layer, and all ML models run strictly behind feature flags (ML_ENABLED=false by default).
+
+### 📋 Model Inventory & Provenance
+
+| Feature Flag | Local Weights (ackend/ml_models/) | Source Model / Architecture | Provenance | Primary Purpose |
+| :--- | :--- | :--- | :--- | :--- |
+| ENABLE_EMBEDDINGS | multilingual-e5-small/ | intfloat/multilingual-e5-small (118M) | Pretrained (Hugging Face) | Multilingual document chunk embeddings, semantic search, and cited answer sources |
+| ENABLE_NER | distilbert-NER/ | dslim/distilbert-NER (66M) | Pretrained (Hugging Face) | Named entity recognition for masking personal names before sending text to external LLMs |
+| ENABLE_DOCLING | granite-docling-258M/ | ibm-granite/granite-docling-258M | Pretrained (Hugging Face / IBM) | Offline vision-to-text conversion for scanned/photographed English pages when Gemini is unreachable |
+| ENABLE_INDIC_TRANSLATE | indictrans2-*-dist-200M/ | i4bharat/indictrans2-*-dist-200M | Pretrained (Hugging Face / AI4Bharat, Gated, MIT) | English ↔ Indian languages translation (Marathi, Hindi, Tamil, etc.) |
+| ENABLE_INDIC_ASR | indic-conformer-600m-multilingual/ | i4bharat/indic-conformer-600m-multilingual | Pretrained (Hugging Face / AI4Bharat, Gated) | Multilingual Indian-language speech-to-text recognition |
+| ENABLE_CAR_DAMAGE | car_damage_detection/ | eingamit99/car_damage_detection | Pretrained (Hugging Face) | Visual inspection classifier for motor insurance claims triage |
+| Custom Models | loan/, raud/ | LoanPredictor, FraudChecker | Custom-Trained (scikit-learn pipelines) | Calibrated credit approval likelihood and claim fraud risk flags |
+
+### ⚡ RAM Requirements & Render Free-Tier Limit
+- The free cloud tier on **Render has a strict 512 MB RAM limit**. Running transformer and vision models directly on Render free will trigger out-of-memory crashes.
+- Therefore, ML weights run locally on a developer workstation or dedicated GPU/CPU host. On Render, INSTALL_ML=false (default) keeps the lightweight cloud deployment ultra-lean.
+- The services/ml/registry.py enforces memory protection:
+  - Loads models **lazily** on first use.
+  - Keeps **at most one heavy model** in RAM at any time (automatically unloads prior heavy models).
+  - Automatically unloads idle models after ML_IDLE_UNLOAD_SECONDS (default: 300s).
+
+### 📥 One-Time Setup & Model Download
+
+Model weights are downloaded strictly offline during setup and are never downloaded while the application is running (HF_HUB_OFFLINE=1).
+
+`ash
+# 1. Install Hugging Face Hub CLI & PyTorch CPU
+pip install huggingface_hub python-dotenv
+
+# 2. Download Core and Document Reading Models (~1.3 GB)
+python scripts/download_models.py --tier docs
+
+# 3. (Optional) For Gated Indian Language Models:
+# Accept access on Hugging Face (ai4bharat/indictrans2-en-indic-dist-200M, ai4bharat/indic-conformer-600m-multilingual)
+# Add HF_TOKEN=hf_... to backend/.env
+python scripts/download_models.py --tier indic
+
+# 4. Verify local models without starting a server
+python scripts/verify_ml.py
+`
+
+### ⚙️ Enabling ML Features (ackend/.env)
+
+`env
+# Enable the local ML engine
+ML_ENABLED=true
+ML_MODELS_DIR=ml_models
+ML_DEVICE=cpu
+ML_IDLE_UNLOAD_SECONDS=300
+
+# Toggle specific models
+ENABLE_EMBEDDINGS=true
+ENABLE_NER=true
+ENABLE_DOCLING=true
+`
+
+---
+
 ## ⚙️ Environment Variables Reference
 
 ### Backend (`backend/.env`)
