@@ -7,7 +7,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from fastapi.responses import Response
 from sqlalchemy import func, select
 
+from config import settings
 from models.db import (
+
     Document,
     DocumentBinary,
     DocumentOwner,
@@ -29,6 +31,7 @@ from services import finance_extraction_service, pdf_service
 from services.cognee_service import CogneeUnavailableError, cognee_service
 from services.ml.embedding_service import delete_document_chunks, index_document_chunks
 from services.ml.pii_service import mask_pii
+from services.document_automation import process_document
 from services.security import get_current_user
 
 
@@ -54,6 +57,7 @@ async def upload_document(
     document_type: DocumentType = Form(...),
     file: Optional[UploadFile] = File(None),
     extracted_text: Optional[str] = Form(None),
+    background_tasks: BackgroundTasks = None,
     user: User = Depends(get_current_user),
 ):
     """
@@ -122,6 +126,8 @@ async def upload_document(
                 index_document_chunks(user.id, document.id, document.filename, text)
             except Exception as e:
                 logger.warning(f"Failed to index chunks on upload: {e}")
+        if background_tasks is not None:
+            background_tasks.add_task(process_document, document.id, user.id)
 
         return DocumentUploadResponse(
             success=True,
@@ -215,10 +221,14 @@ async def analyze_document(
         document.extraction_method = result.get("extraction_method", "gemini")
 
         if result.get("extracted_text"):
+            extracted = result["extracted_text"]
+            masked_extracted, extracted_pii_rep = mask_pii(extracted)
+            if not pii_rep or pii_rep.get("total", 0) == 0:
+                document.pii_report = extracted_pii_rep
             if settings.store_masked_text:
-                document.extracted_text = masked_text
+                document.extracted_text = masked_extracted
             else:
-                document.extracted_text = result["extracted_text"]
+                document.extracted_text = extracted
         elif settings.store_masked_text:
             document.extracted_text = masked_text
 
@@ -292,6 +302,7 @@ async def list_documents(
                 file_size=binary_meta.get(document.id, (None, None))[1],
                 created_at=document.created_at,
                 risks_count=len(document.risks or []),
+                risks=document.risks or [],
                 memory_status=document.memory_status,
                 pii_report=document.pii_report,
                 extraction_method=document.extraction_method,
@@ -405,4 +416,3 @@ async def get_document_hindi_explanation(
             risks=explanation["risks"],
             spoken_text=explanation["spoken_text"],
         )
-

@@ -24,8 +24,8 @@ import DocumentHistory from '../components/DocumentHistory'
 import ImageUploader from '../components/ImageUploader'
 import { DOCUMENT_TYPES } from '../constants/documentTypes'
 import {
-  analyzeDocument,
   downloadDocument,
+  getDocument,
   getHindiDocumentExplanation,
   uploadDocument,
 } from '../services/financeService'
@@ -82,7 +82,14 @@ export default function Documents() {
 
     setStage('analyzing')
     try {
-      const analysis = await analyzeDocument(uploadResult.id, geminiModel)
+      let analysis = uploadResult
+      for (let attempt = 0; attempt < 30 && !(analysis.summary || Object.keys(analysis.fields || {}).length); attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        analysis = await getDocument(uploadResult.id)
+      }
+      if (!(analysis.summary || Object.keys(analysis.fields || {}).length)) {
+        throw new Error('Automatic document processing is taking longer than expected. Please check Document History.')
+      }
       setStage('generating')
       setResult(analysis)
       if (language === 'hi') {
