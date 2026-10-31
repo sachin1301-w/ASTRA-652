@@ -83,12 +83,15 @@ export default function Documents() {
     setStage('analyzing')
     try {
       let analysis = uploadResult
-      for (let attempt = 0; attempt < 30 && !(analysis.summary || Object.keys(analysis.fields || {}).length); attempt += 1) {
+      for (let attempt = 0; attempt < 120 && analysis.memory_status === 'pending' && !(analysis.summary || Object.keys(analysis.fields || {}).length); attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 1000))
         analysis = await getDocument(uploadResult.id)
       }
       if (!(analysis.summary || Object.keys(analysis.fields || {}).length)) {
-        throw new Error('Automatic document processing is taking longer than expected. Please check Document History.')
+        throw new Error(
+          analysis.memory_error ||
+          'Automatic document processing did not produce an analysis. Please check Document History and try again.',
+        )
       }
       setStage('generating')
       setResult(analysis)

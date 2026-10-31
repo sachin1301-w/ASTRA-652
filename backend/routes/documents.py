@@ -54,10 +54,10 @@ def _owned_document(session, document_id: str, user_id: str) -> Document:
 
 @router.post("/upload", response_model=DocumentUploadResponse)
 async def upload_document(
+    background_tasks: BackgroundTasks,
     document_type: DocumentType = Form(...),
     file: Optional[UploadFile] = File(None),
     extracted_text: Optional[str] = Form(None),
-    background_tasks: BackgroundTasks = None,
     user: User = Depends(get_current_user),
 ):
     """
@@ -126,8 +126,7 @@ async def upload_document(
                 index_document_chunks(user.id, document.id, document.filename, text)
             except Exception as e:
                 logger.warning(f"Failed to index chunks on upload: {e}")
-        if background_tasks is not None:
-            background_tasks.add_task(process_document, document.id, user.id)
+        background_tasks.add_task(process_document, document.id, user.id)
 
         return DocumentUploadResponse(
             success=True,
