@@ -1,0 +1,18 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+
+# Uploaded files (temporary local storage only, never committed)
+uploads/*
+!uploads/.gitkeep
+
+# Local SQLite database
+data/finlens.db
+
+# Cognee's local vector/graph/relational storage
+data/cognee_storage/
