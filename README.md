@@ -58,7 +58,7 @@ Experience FinLens AI instantly without creating an account:
 
 ### 4. 🇮🇳 हिंदी में समझें और सुनें (Hindi Document Simplification & HD Voice Readout)
 - **Plain Devanagari Hindi Simplification:** Automatically translates dense banking, legal, and insurance jargon into conversational, easy-to-understand Devanagari Hindi.
-- **Server-Side Google Text-to-Speech (gTTS):** High-definition voice audio streaming (`POST /api/speech/tts`) delivered straight to the browser as an MP3 stream.
+- **Sarvam AI Voice:** Sarvam Bulbul voice output and Saaras speech recognition power native Indian-language conversations (`POST /api/speech/tts` and `POST /api/speech/stt`), with local browser/Google fallbacks.
 - **Universal Cross-Platform Playback:** Guarantees flawless Hindi audio pronunciation across Windows, macOS, Linux, iOS, and Android—completely eliminating issues with missing OS-level Hindi voice packages.
 
 ### 5. 📊 Dynamic Financial Twin & Health Score
@@ -287,7 +287,7 @@ FinLens/
 │   │   ├── documents.py                # Upload, analysis, download, Hindi breakdown
 │   │   ├── finance.py                  # EMI calculations & Health Score engine
 │   │   ├── profile.py                  # Financial Twin profile & asset records
-│   │   └── speech.py                   # Google TTS MP3 streaming endpoint
+│   │   └── speech.py                   # Sarvam TTS/STT with fallback endpoints
 │   ├── services/
 │   │   ├── cognee_service.py           # Cognee vector + graph integration layer
 │   │   ├── finance_calculations.py     # Deterministic DTI & health scoring math

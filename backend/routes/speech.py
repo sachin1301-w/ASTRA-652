@@ -17,16 +17,15 @@ SARVAM_API_URL = "https://api.sarvam.ai"
 
 
 class TTSRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=10000)
+    text: str = Field(min_length=1, max_length=2500)
     language: str = Field(default="hi")
 
 
 @router.post("/tts")
 def text_to_speech(payload: TTSRequest):
     """
-    Generates authentic, high-definition native spoken audio (MP3) via Google TTS.
-    Guarantees crystal-clear Hindi pronunciation even when Windows or the user's
-    browser does not have a native Hindi TTS voice pack installed.
+    Generates native Indian-language spoken audio through Sarvam Bulbul.
+    Falls back to Google TTS when Sarvam is unavailable.
     """
     raw_text = payload.text.strip()
     if not raw_text:
@@ -51,8 +50,7 @@ def text_to_speech(payload: TTSRequest):
                 json={
                     "text": clean,
                     "language_code": language_code,
-                    "speaker": "shubh",
-                    "model": "bulbul:v3",
+                    "model": "bulbul:v4-flash",
                     "speech_sample_rate": 22050,
                     "output_audio_codec": "mp3",
                     "enable_preprocessing": True,
@@ -94,7 +92,7 @@ async def speech_to_text(
     audio: UploadFile = File(...),
     language: str = Form(default="hi"),
 ):
-    """Transcribes a recorded audio upload with Sarvam Saaras."""
+    """Transcribes a short recorded audio upload with Sarvam Saaras v4."""
     if not settings.sarvam_ai_api_key:
         raise HTTPException(status_code=503, detail="Sarvam AI is not configured.")
 
@@ -110,7 +108,7 @@ async def speech_to_text(
             f"{SARVAM_API_URL}/speech-to-text",
             headers={"api-subscription-key": settings.sarvam_ai_api_key},
             files={"file": (filename, content, content_type)},
-            data={"model": "saaras:v2", "language_code": language_code},
+            data={"model": "saaras:v4", "mode": "codemix"},
             timeout=60,
         )
         response.raise_for_status()

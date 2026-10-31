@@ -11,6 +11,9 @@
 const SpeechRecognitionImpl = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null
 
 export const isSpeechRecognitionSupported = Boolean(SpeechRecognitionImpl)
+export const isServerSpeechSupported =
+  typeof navigator !== 'undefined' &&
+  Boolean(navigator.mediaDevices?.getUserMedia && typeof window !== 'undefined' && window.MediaRecorder)
 export const isSpeechSynthesisSupported = typeof window !== 'undefined' && 'speechSynthesis' in window
 
 const RECOGNITION_LOCALES = { en: 'en-IN', hi: 'hi-IN' }
@@ -248,6 +251,60 @@ export async function transcribeAudio(audio, language = 'hi') {
     throw new Error(result.detail || result.error || 'Speech transcription failed.')
   }
   return result.transcript || ''
+}
+
+/**
+ * Records microphone audio for server-side Sarvam transcription.
+ * @param {{ language?: 'en' | 'hi', onStart?: () => void, onStop?: () => void }} [callbacks]
+ * @returns {Promise<{ stop: () => void, result: Promise<string> }>}
+ */
+export async function startServerRecording(callbacks = {}) {
+  if (!isServerSpeechSupported) {
+    throw new Error('Server speech recording is not supported in this browser.')
+  }
+
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+  const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((type) =>
+    window.MediaRecorder.isTypeSupported(type)
+  )
+  const recorder = new window.MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+  const chunks = []
+  let maxDurationTimer
+
+  const result = new Promise((resolve, reject) => {
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data)
+    }
+    recorder.onerror = () => reject(new Error('Microphone recording failed.'))
+    recorder.onstop = async () => {
+      window.clearTimeout(maxDurationTimer)
+      stream.getTracks().forEach((track) => track.stop())
+      callbacks.onStop?.()
+      if (chunks.length === 0) {
+        reject(new Error('No audio was recorded. Please try again.'))
+        return
+      }
+
+      try {
+        resolve(await transcribeAudio(new Blob(chunks, { type: recorder.mimeType }), callbacks.language ?? 'hi'))
+      } catch (error) {
+        reject(error)
+      }
+    }
+  })
+
+  recorder.start()
+  maxDurationTimer = window.setTimeout(() => {
+    if (recorder.state !== 'inactive') recorder.stop()
+  }, 25000)
+  callbacks.onStart?.()
+
+  return {
+    stop: () => {
+      if (recorder.state !== 'inactive') recorder.stop()
+    },
+    result,
+  }
 }
 
 function speakLocal(cleanText, language) {

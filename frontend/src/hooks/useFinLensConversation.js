@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { sendMessage } from '../services/geminiService'
 import {
+  isServerSpeechSupported,
   isSpeechRecognitionSupported,
-  isSpeechSynthesisSupported,
   listenOnce,
+  startServerRecording,
   speak,
   stopListening,
   stopSpeaking,
@@ -27,6 +28,7 @@ export function useFinLensConversation(language, model) {
   const [status, setStatus] = useState('idle') // 'idle' | 'listening' | 'thinking' | 'speaking' | 'error'
   const [isMicActive, setIsMicActive] = useState(false)
   const [error, setError] = useState('')
+  const serverRecordingRef = useRef(null)
   const [isVoiceOutputEnabled, setIsVoiceOutputEnabledState] = useState(() => {
     try {
       return localStorage.getItem(VOICE_PREF_KEY) !== 'false'
@@ -40,6 +42,7 @@ export function useFinLensConversation(language, model) {
     return () => {
       stopSpeaking()
       stopListening()
+      serverRecordingRef.current?.stop()
     }
   }, [])
 
@@ -69,7 +72,7 @@ export function useFinLensConversation(language, model) {
       const result = await sendMessage({ question, language, dynamicContext, model })
       setMessages((prev) => [...prev, makeMessage('assistant', result.text)])
 
-      if (isVoiceOutputEnabled && isSpeechSynthesisSupported) {
+      if (isVoiceOutputEnabled) {
         setStatus('speaking')
         await speak(result.text, language).catch(() => {})
       }
@@ -84,6 +87,7 @@ export function useFinLensConversation(language, model) {
   async function toggleMic() {
     handleStopSpeaking()
     if (isMicActive) {
+      serverRecordingRef.current?.stop()
       stopListening()
       setIsMicActive(false)
       setStatus('idle')
@@ -94,7 +98,23 @@ export function useFinLensConversation(language, model) {
     setStatus('listening')
     setError('')
     try {
-      const transcript = await listenOnce(language, { onEnd: () => setIsMicActive(false) })
+      let transcript = ''
+      if (isServerSpeechSupported) {
+        const recording = await startServerRecording({
+          language,
+          onStart: () => setIsMicActive(true),
+          onStop: () => {
+            serverRecordingRef.current = null
+            setIsMicActive(false)
+          },
+        })
+        serverRecordingRef.current = recording
+        transcript = await recording.result
+      } else if (isSpeechRecognitionSupported) {
+        transcript = await listenOnce(language, { onEnd: () => setIsMicActive(false) })
+      } else {
+        throw new Error('Microphone speech input is not supported in this browser.')
+      }
       if (transcript.trim()) {
         await askFinLens(transcript.trim())
       } else {
@@ -105,6 +125,7 @@ export function useFinLensConversation(language, model) {
       setError(err.message)
       setStatus('error')
       setIsMicActive(false)
+      serverRecordingRef.current = null
     }
   }
 
@@ -127,7 +148,7 @@ export function useFinLensConversation(language, model) {
     isSpeaking: status === 'speaking',
     isVoiceOutputEnabled,
     setVoiceOutputEnabled,
-    isMicSupported: isSpeechRecognitionSupported,
-    isSpeechOutputSupported: isSpeechSynthesisSupported,
+    isMicSupported: isServerSpeechSupported || isSpeechRecognitionSupported,
+    isSpeechOutputSupported: true,
   }
 }
