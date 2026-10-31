@@ -2,11 +2,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+import asyncio
 import re
 
 from config import settings
 from models.db import init_db
 from routes import assistant, auth, cognee, convai, documents, finance, ml, profile, speech
+from services.document_automation import recover_pending_documents
 
 
 app = FastAPI(
@@ -44,9 +46,10 @@ app.add_middleware(
 
 
 @app.on_event("startup")
-def on_startup():
+async def on_startup():
     init_db()
     auth.seed_demo_users()
+    asyncio.create_task(recover_pending_documents())
 
 
 @app.exception_handler(HTTPException)
@@ -82,4 +85,3 @@ def root():
 @app.get("/api/health")
 def health_check():
     return {"success": True, "message": "FinLens AI backend is running."}
-

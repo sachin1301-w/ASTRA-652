@@ -1,15 +1,30 @@
 """Background document processing used by the automatic upload workflow."""
 
 import logging
+import asyncio
 
 from config import settings
 from models.db import Document, DocumentBinary, get_session
+from models.db import DocumentOwner
+from sqlalchemy import select
 from services import finance_extraction_service
 from services.cognee_service import CogneeUnavailableError, cognee_service
 from services.ml.embedding_service import index_document_chunks
 from services.ml.pii_service import mask_pii
 
 logger = logging.getLogger(__name__)
+
+
+async def recover_pending_documents() -> None:
+    """Resume uploads left pending after a backend restart."""
+    with get_session() as session:
+        rows = session.execute(
+            select(Document.id, DocumentOwner.user_id)
+            .join(DocumentOwner, DocumentOwner.document_id == Document.id)
+            .where(Document.memory_status == "pending")
+            .limit(20)
+        ).all()
+    await asyncio.gather(*(process_document(document_id, user_id) for document_id, user_id in rows))
 
 
 async def process_document(document_id: str, user_id: str, model: str | None = None) -> None:
@@ -27,6 +42,7 @@ async def process_document(document_id: str, user_id: str, model: str | None = N
         mime_type = stored_file.content_type if stored_file else None
 
     masked_text, pii_report = mask_pii(text)
+    memory_status, memory_error = "failed", None
     try:
         result = await finance_extraction_service.extract_financial_data(
             document_type, masked_text, file_bytes=file_bytes, mime_type=mime_type, model=model
@@ -51,9 +67,15 @@ async def process_document(document_id: str, user_id: str, model: str | None = N
         except Exception as exc:
             logger.warning("Automatic document indexing failed for %s: %s", document_id, exc)
         memory_text = f"Document type: {document_type}\nSummary: {summary}\n{fields}\nFull text:\n{indexed_text[:8000]}"
-        await cognee_service.add_document(user_id, mask_pii(memory_text)[0], metadata={"document_id": document_id})
-        await cognee_service.process_document(user_id)
-        memory_status, memory_error = "added", None
+        try:
+            await cognee_service.add_document(user_id, mask_pii(memory_text)[0], metadata={"document_id": document_id})
+            await cognee_service.process_document(user_id)
+            memory_status, memory_error = "added", None
+        except CogneeUnavailableError as exc:
+            memory_status, memory_error = "disabled", str(exc)
+        except Exception as exc:
+            logger.warning("Automatic memory sync failed for %s: %s", document_id, exc)
+            memory_status, memory_error = "failed", str(exc)[:2000]
     except CogneeUnavailableError as exc:
         memory_status, memory_error = "disabled", str(exc)
     except Exception as exc:
