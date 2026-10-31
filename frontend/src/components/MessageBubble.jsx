@@ -153,6 +153,21 @@ export default function MessageBubble({ message }) {
               </div>
             )}
 
+            {message.steps && message.steps.length > 0 && (
+              <details className="mt-3 border-t border-[#e3edf7] pt-2 text-xs">
+                <summary className="cursor-pointer font-bold text-[#002970]">
+                  How I got this answer
+                </summary>
+                <ol className="mt-2 list-decimal space-y-1 pl-5 text-[#526484]">
+                  {message.steps.map((step, idx) => (
+                    <li key={`${step.tool}-${idx}`}>
+                      {step.tool.replaceAll('_', ' ')}
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            )}
+
             {isSpeechSynthesisSupported && (
 
               <div className="mt-3 flex items-center justify-between border-t border-[#e3edf7] pt-2 text-xs">

@@ -11,8 +11,8 @@ import {
 } from '../services/speechService'
 
 let nextMessageId = 1
-function makeMessage(role, content, sources = []) {
-  return { id: nextMessageId++, role, content, sources }
+function makeMessage(role, content, sources = [], steps = []) {
+  return { id: nextMessageId++, role, content, sources, steps }
 }
 
 
@@ -71,7 +71,7 @@ export function useFinLensConversation(language, model) {
     setError('')
     try {
       const result = await sendMessage({ question, language, dynamicContext, model })
-      setMessages((prev) => [...prev, makeMessage('assistant', result.text, result.sources)])
+      setMessages((prev) => [...prev, makeMessage('assistant', result.text, result.sources, result.steps)])
 
 
       if (isVoiceOutputEnabled) {

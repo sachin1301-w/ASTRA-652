@@ -29,7 +29,13 @@ async def chat(payload: AssistantChatRequest, user: User = Depends(get_current_u
         else "Respond only in simple English."
     )
 
-    agent_run = await run_agent(user.id, payload.question, payload.dynamic_context)
+    agent_run = await run_agent(
+        user.id,
+        payload.question,
+        payload.dynamic_context,
+        language=payload.language,
+        model=payload.model,
+    )
     masked_question, _ = mask_pii(payload.question.strip())
     embedding_section = ""
     if agent_run.sources:
@@ -44,18 +50,21 @@ async def chat(payload: AssistantChatRequest, user: User = Depends(get_current_u
             "found in the documents or profile, state clearly: 'This information is not present in your uploaded documents.'"
         )
 
-    prompt = (
-        f"{SAFETY_INSTRUCTION}\n\n{language_instruction}\n\n"
-        f"Authenticated user: {user.name}\n\n"
-        f"Agent-selected read-only tool results:\n{agent_run.context}\n"
-        f"{embedding_section}"
-        f"User question:\n{masked_question}"
-    )
-    try:
-        selected_model = gemini_service.resolve_model(payload.model)
-        answer = await gemini_service.generate_text(prompt, model=selected_model)
-    except gemini_service.GeminiUnavailableError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    selected_model = gemini_service.resolve_model(payload.model)
+    if agent_run.answer:
+        answer = agent_run.answer
+    else:
+        prompt = (
+            f"{SAFETY_INSTRUCTION}\n\n{language_instruction}\n\n"
+            f"Authenticated user: {user.name}\n\n"
+            f"Agent-selected read-only tool results:\n{agent_run.context}\n"
+            f"{embedding_section}"
+            f"User question:\n{masked_question}"
+        )
+        try:
+            answer = await gemini_service.generate_text(prompt, model=selected_model)
+        except gemini_service.GeminiUnavailableError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     citation_objs = [
         SourceCitation(
@@ -73,4 +82,5 @@ async def chat(payload: AssistantChatRequest, user: User = Depends(get_current_u
         answer=answer,
         model=selected_model,
         sources=citation_objs,
+        steps=agent_run.steps,
     )

@@ -556,4 +556,6 @@ ENABLE_DOCLING=true
 
 ### Agentic Financial Guidance
 
-The assistant now uses a bounded read-only orchestrator before generating an answer. It selects only the tools relevant to the question: the authenticated financial profile, health-score calculations, EMI affordability, semantic document retrieval, and Cognee financial memory. Tool results are user-scoped and PII-masked before they are sent to Gemini; the orchestrator cannot change profile data, approve products, or submit transactions.
+Set `ENABLE_AGENT=true` to enable the bounded Gemini function-calling loop. Gemini can call the authenticated profile, health score, EMI, loan comparison, document search, financial memory, and document-list tools, inspect their results, and call another tool before writing the answer. The loop is limited to five iterations and approximately 25 seconds; duplicate calls are suppressed.
+
+The default `ENABLE_AGENT=false` path retains the deterministic keyword-based orchestration. If Gemini tool calling fails, FinLens automatically falls back to that path. All tools are read-only, identity always comes from the authenticated route, retrieved text is treated as untrusted data, and PII is masked before external model calls. The chat response includes a `steps` trace that the UI renders under “How I got this answer.”

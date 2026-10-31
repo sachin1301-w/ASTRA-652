@@ -114,6 +114,63 @@ async def generate_text(
         raise GeminiUnavailableError("All available Gemini models are currently busy. Please retry in a few seconds.")
 
 
+async def generate_with_tools(
+    contents: list[dict],
+    tools: list[dict],
+    *,
+    temperature: float = 0.2,
+    model: str | None = None,
+    timeout: float = 25.0,
+    system_instruction: str | None = None,
+) -> dict:
+    """Call Gemini generateContent with function declarations and return JSON."""
+    if not settings.gemini_api_key:
+        raise GeminiUnavailableError("GEMINI_API_KEY is not configured on the backend.")
+    payload = {
+        "contents": contents,
+        "tools": tools,
+        "generationConfig": {"temperature": temperature, "maxOutputTokens": 2048},
+    }
+    if system_instruction:
+        payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+    models_to_try = [resolve_model(model)]
+    for candidate in SUPPORTED_MODELS:
+        if candidate not in models_to_try:
+            models_to_try.append(candidate)
+
+    last_exc = None
+    for target_model in models_to_try:
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    _endpoint(target_model),
+                    headers={
+                        "x-goog-api-key": settings.gemini_api_key,
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                )
+                response.raise_for_status()
+                data = response.json()
+                if not data.get("candidates"):
+                    raise GeminiUnavailableError("Gemini returned no candidates.")
+                return data
+        except httpx.HTTPStatusError as exc:
+            last_exc = exc
+            if exc.response.status_code in (429, 500, 502, 503, 504) and target_model != models_to_try[-1]:
+                logger.warning("Model %s returned HTTP %s; trying fallback model...", target_model, exc.response.status_code)
+                continue
+            raise GeminiUnavailableError(
+                _http_error_message(exc, "Gemini tool calling is unavailable right now.")
+            ) from exc
+        except httpx.HTTPError as exc:
+            last_exc = exc
+            raise GeminiUnavailableError(
+                _http_error_message(exc, "Gemini tool calling is unavailable right now.")
+            ) from exc
+    raise GeminiUnavailableError("All available Gemini models are currently busy.") from last_exc
+
+
 async def generate_json(
     prompt: str,
     *,

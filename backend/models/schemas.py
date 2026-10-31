@@ -65,6 +65,7 @@ class AssistantChatResponse(BaseModel):
     answer: str
     model: str
     sources: list[SourceCitation] = Field(default_factory=list)
+    steps: list[dict] = Field(default_factory=list)
 
 
 
@@ -119,6 +120,7 @@ class DocumentSummaryOut(BaseModel):
     file_size: Optional[int] = None
     created_at: datetime
     risks_count: int
+    risks: list[str] = Field(default_factory=list)
     memory_status: MemoryStatus
     pii_report: Optional[dict] = None
     extraction_method: Optional[str] = "gemini"
