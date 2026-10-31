@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import LanguageSelector from './LanguageSelector'
 import GeminiModelSelector from './GeminiModelSelector'
+import NotificationCenter from './NotificationCenter'
 
 const NAV_LINKS = [
   { to: '/dashboard', label: 'Home', icon: LayoutDashboard },
@@ -65,6 +66,7 @@ export default function Header({ user, language, onLanguageChange, geminiModel, 
         <div className="flex items-center gap-2.5">
           <GeminiModelSelector value={geminiModel} onChange={onGeminiModelChange} compact />
           <LanguageSelector language={language} onChange={onLanguageChange} />
+          <NotificationCenter />
           <div className="hidden items-center gap-2 rounded-xl border border-[#e3edf7] bg-[#f0f7fd] px-3 py-2 sm:flex">
             <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#002970] text-white">
               <UserRound className="h-3 w-3" aria-hidden="true" />
