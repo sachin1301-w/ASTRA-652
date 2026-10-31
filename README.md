@@ -553,3 +553,7 @@ ENABLE_DOCLING=true
 - **Server-Side Key Isolation:** All third-party credentials (`GEMINI_API_KEY`, `COGNEE_API_KEY`) remain securely on the backend server and are never exposed to client-side code.
 - **Controlled Unwinding:** Deleting a document removes its binary and parsed records, and automatically unwinds any recurring liabilities (such as loan EMIs or insurance premiums) that were linked to the user's Financial Twin.
 - **Educational Guidance Disclaimer:** *FinLens AI provides educational financial analysis, mathematical projections, and AI-driven document interpretations for informational purposes only. It does not constitute certified legal, tax, or financial advice.*
+
+### Agentic Financial Guidance
+
+The assistant now uses a bounded read-only orchestrator before generating an answer. It selects only the tools relevant to the question: the authenticated financial profile, health-score calculations, EMI affordability, semantic document retrieval, and Cognee financial memory. Tool results are user-scoped and PII-masked before they are sent to Gemini; the orchestrator cannot change profile data, approve products, or submit transactions.
